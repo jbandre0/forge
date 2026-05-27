@@ -4577,6 +4577,12 @@
             </select>
             <button onclick="addBuilderEx()" style="background:var(--accent-dim);border:1px solid rgba(0,200,255,0.3);border-radius:var(--radius-sm);color:var(--accent);font-size:13px;padding:8px 14px;cursor:pointer;white-space:nowrap">+ Add</button>
           </div>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <input id="builder-custom-ex" type="text" placeholder="Or type a custom exercise…"
+              style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:8px 10px"
+              onkeydown="if(event.key==='Enter')addBuilderCustomEx()">
+            <button onclick="addBuilderCustomEx()" style="background:var(--surface-h);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:13px;padding:8px 14px;cursor:pointer;white-space:nowrap">+ Add</button>
+          </div>
         </div>
         <div style="display:flex;gap:10px;margin-top:4px">
           <button onclick="saveTemplate()" style="flex:1;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:var(--radius-sm);color:#fff;font-size:14px;font-weight:700;padding:12px;cursor:pointer">
@@ -4605,6 +4611,16 @@
     if (!val || builderExercises.includes(val)) { sel.value=''; return; }
     builderExercises.push(val);
     sel.value = '';
+    renderBuilderExList();
+  }
+
+  function addBuilderCustomEx() {
+    const inp = document.getElementById('builder-custom-ex');
+    const val = (inp?.value || '').trim();
+    if (!val) return;
+    if (builderExercises.includes(val)) { inp.value = ''; return; }
+    builderExercises.push(val);
+    inp.value = '';
     renderBuilderExList();
   }
 
