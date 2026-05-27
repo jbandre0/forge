@@ -1269,7 +1269,7 @@
   <!-- ══════════════════════════════════════════════════════════ -->
   <!-- PIN SETUP MODAL                                            -->
   <!-- ══════════════════════════════════════════════════════════ -->
-  <div id="pin-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px">
+  <div id="pin-modal" style="position:fixed;inset:0;z-index:9999;background:var(--bg);overflow-y:auto;flex-direction:column;align-items:center;justify-content:center;padding:32px;display:none">
     <div style="width:100%;max-width:360px;padding-bottom:20px">
       <div style="font-size:48px;text-align:center;margin-bottom:12px">💪</div>
       <h2 style="font-size:26px;font-weight:800;text-align:center;margin-bottom:6px;letter-spacing:-0.5px">FORGE</h2>
@@ -1369,6 +1369,18 @@
       </div>
       <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
         Data syncs automatically to Cloudflare on every save.<br>Same PIN on any device = your data everywhere.
+      </div>
+      <!-- Export / Import -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-top:10px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Backup & Restore</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">Export all your data as a JSON file. Import to restore after updating the app.</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="exportData()" style="flex:1;background:var(--surface-h);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-weight:600;padding:10px;cursor:pointer">⬇ Export Backup</button>
+          <button onclick="document.getElementById('import-file').click()" style="flex:1;background:var(--surface-h);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;font-weight:600;padding:10px;cursor:pointer">⬆ Import Backup</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6;margin-top:10px">
       </div>
     </div>
   </div>
@@ -2039,15 +2051,21 @@
   };
 
   function getActiveSplitConfig() {
-    const type = ls('wk_split_type', 'ppl');
+    const type = getActiveSplitType();
     if (type === 'custom') {
-      const names = ls('wk_custom_splits', ['A','B']);
+      const names = getCustomSplits();
       return { label: 'Custom', splits: names, emoji: names.map(() => '🏅') };
     }
     return SPLIT_CONFIGS[type] || SPLIT_CONFIGS.ppl;
   }
 
-  function getUserName() { return ls('wk_name', ''); }
+  // Name + split stored WITHOUT pin prefix — they're device-level prefs, not synced data
+  function getUserName() { try { return JSON.parse(localStorage.getItem('forge_name')) || ''; } catch { return ''; } }
+  function _storeName(n) { try { localStorage.setItem('forge_name', JSON.stringify(n)); } catch {} }
+  function _storeSplitType(t) { try { localStorage.setItem('forge_split_type', JSON.stringify(t)); } catch {} }
+  function _storeCustomSplits(arr) { try { localStorage.setItem('forge_custom_splits', JSON.stringify(arr)); } catch {} }
+  function getActiveSplitType() { try { return JSON.parse(localStorage.getItem('forge_split_type')) || 'ppl'; } catch { return 'ppl'; } }
+  function getCustomSplits() { try { return JSON.parse(localStorage.getItem('forge_custom_splits')) || ['A','B']; } catch { return ['A','B']; } }
 
   // ── SPLIT TYPE PICKER (PIN modal) ────────────────────────────
   let _pendingSplitType = 'ppl';
@@ -2163,12 +2181,12 @@
 
   function _savePinModalProfile() {
     const name = (document.getElementById('name-input')?.value || '').trim();
-    if (name) save('wk_name', name);
-    save('wk_split_type', _pendingSplitType);
+    if (name) _storeName(name);
+    _storeSplitType(_pendingSplitType);
     if (_pendingSplitType === 'custom') {
       const raw = document.getElementById('custom-split-input')?.value || '';
       const splits = raw.split(',').map(s => s.trim()).filter(Boolean);
-      if (splits.length) save('wk_custom_splits', splits);
+      if (splits.length) _storeCustomSplits(splits);
     }
   }
 
@@ -2195,7 +2213,7 @@
   function saveSettingsName() {
     const name = (document.getElementById('settings-name-input')?.value || '').trim();
     if (name) {
-      save('wk_name', name);
+      _storeName(name);
       updateDashboardDate();
       showSyncToast('✓ Name saved');
     }
@@ -3979,14 +3997,22 @@
       el.innerHTML = `<div style="color:var(--text3);font-size:13px;text-align:center;padding:16px">No sessions yet — start your first one!</div>`;
       return;
     }
-    el.innerHTML = sessions.map(s => {
+    const allSessions = ls('wk_sessions',[]);
+    el.innerHTML = sessions.map((s, i) => {
       const d = new Date(s.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
       const exNames = s.exercises.slice(0,3).map(e=>e.name).join(', ') + (s.exercises.length>3?` +${s.exercises.length-3}`:'');
       const total = s.exercises.reduce((n,e)=>n+(e.sets?.length||0),0);
+      // Find actual index in full sessions array for safe deletion
+      const actualIdx = allSessions.findIndex(x => x.startTime === s.startTime);
       return `<div class="recent-session-card">
-        <div class="recent-session-top">
-          <span class="pill pill-blue">${s.split}</span>
-          <span style="font-size:12px;color:var(--text2)">${d} · ${s.duration}m</span>
+        <div class="recent-session-top" style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="pill pill-blue">${s.split}</span>
+            <span style="font-size:12px;color:var(--text2)">${d} · ${s.duration}m</span>
+          </div>
+          <button onclick="deleteSession(${actualIdx})" title="Delete session"
+            style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:2px 6px;line-height:1"
+            onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--text3)'">🗑</button>
         </div>
         <div style="font-size:13px;color:var(--text2)">${exNames||'No exercises'}</div>
         <div style="font-size:12px;color:var(--text3);margin-top:3px">${total} sets</div>
@@ -4688,6 +4714,91 @@
           </div>
         </div>
       `).join('');
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // EXPORT / IMPORT
+  // ═══════════════════════════════════════════════════════════════
+  const DATA_KEYS = ['wk_sessions','wk_nutr','wk_nutr_goals','wk_saved_foods','wk_wellness','wk_cardio','wk_sports','wk_templates'];
+
+  function exportData() {
+    const snapshot = { exportedAt: new Date().toISOString(), version: 1, app: 'FORGE' };
+    DATA_KEYS.forEach(k => {
+      const v = localStorage.getItem(pinKey(k));
+      if (v !== null) { try { snapshot[k] = JSON.parse(v); } catch { snapshot[k] = v; } }
+    });
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `forge-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showSyncToast('✓ Backup downloaded');
+    closeSettings();
+  }
+
+  function importData(input) {
+    const file = input.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const snapshot = JSON.parse(e.target.result);
+        if (!snapshot.wk_sessions && !snapshot.wk_nutr) {
+          showSyncToast('Invalid backup file'); input.value = ''; return;
+        }
+        const dateStr = snapshot.exportedAt
+          ? new Date(snapshot.exportedAt).toLocaleDateString('en', { month:'short', day:'numeric', year:'numeric' })
+          : 'this file';
+        window._pendingImport = snapshot;
+        // Show confirm overlay
+        const overlay = document.createElement('div');
+        overlay.id = 'import-confirm-overlay';
+        overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.75);display:flex;align-items:center;justify-content:center;padding:32px';
+        overlay.innerHTML = `
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:320px;width:100%;text-align:center">
+            <div style="font-size:22px;margin-bottom:12px">⬆️</div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:8px">Import backup?</div>
+            <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:20px">
+              This will replace ALL current data with the backup from <strong>${dateStr}</strong>. Cannot be undone.
+            </div>
+            <div style="display:flex;gap:10px;justify-content:center">
+              <button onclick="_importConfirmed()" style="flex:1;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:var(--radius-sm);color:#fff;font-size:14px;font-weight:700;padding:12px;cursor:pointer">Yes, import</button>
+              <button onclick="document.getElementById('import-confirm-overlay').remove()" style="flex:1;background:var(--surface-h);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:14px;padding:12px;cursor:pointer">Cancel</button>
+            </div>
+          </div>`;
+        document.body.appendChild(overlay);
+        input.value = '';
+      } catch { showSyncToast('Could not read file'); input.value = ''; }
+    };
+    reader.readAsText(file);
+  }
+
+  function _importConfirmed() {
+    const snap = window._pendingImport; if (!snap) return;
+    document.getElementById('import-confirm-overlay')?.remove();
+    DATA_KEYS.forEach(k => {
+      if (snap[k] !== undefined) localStorage.setItem(pinKey(k), JSON.stringify(snap[k]));
+    });
+    window._pendingImport = null;
+    showSyncToast('✓ Import successful — reloading…');
+    setTimeout(() => location.reload(), 1400);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // DELETE WORKOUT
+  // ═══════════════════════════════════════════════════════════════
+  function deleteSession(idx) {
+    const sessions = ls('wk_sessions', []);
+    if (idx < 0 || idx >= sessions.length) return;
+    const s = sessions[idx];
+    const label = `${s.split} on ${s.date}`;
+    if (!confirm(`Delete ${label}? This cannot be undone.`)) return;
+    sessions.splice(idx, 1);
+    save('wk_sessions', sessions);
+    renderRecentSessions();
+    renderWeeklyBars();
+    showSyncToast('Session deleted');
   }
 
   // ═══════════════════════════════════════════════════════════════
