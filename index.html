@@ -642,6 +642,16 @@
     .week-dot-lbl { font-size: 9px; color: var(--text3); }
 
     /* ─── PLAN TAB ────────────────────────────────────────────── */
+    /* split type picker in PIN modal */
+    .split-type-opt {
+      background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px 8px; cursor: pointer;
+      color: var(--text2); text-align: center; transition: all 0.15s;
+    }
+    .split-type-opt.active {
+      background: var(--accent-dim); border-color: rgba(0,200,255,0.4); color: var(--text);
+    }
+
     .plan-pane { display: none; }
     .plan-pane.active { display: block; }
 
@@ -971,13 +981,13 @@
   <div id="screen-dashboard" class="screen active">
     <div class="screen-header">
       <div>
-        <h1>Good morning, <span>Justin</span> 👋</h1>
+        <h1 id="dashboard-greeting">Good morning 👋</h1>
         <div class="header-meta">Saturday · May 23</div>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <div id="sync-dot" title="Sync status" style="width:8px;height:8px;border-radius:50%;background:var(--text3)"></div>
         <button onclick="openSettings()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:4px">⚙️</button>
-        <div class="header-avatar">J</div>
+        <div class="header-avatar" id="header-avatar">?</div>
       </div>
     </div>
 
@@ -1133,10 +1143,8 @@
       <div id="log-no-session">
         <div class="card">
           <div class="card-title">Select Today's Split</div>
-          <div class="split-btns">
-            <button class="split-btn" data-split="Push" onclick="selectSplit('Push')">💪 Push</button>
-            <button class="split-btn" data-split="Pull" onclick="selectSplit('Pull')">🔄 Pull</button>
-            <button class="split-btn" data-split="Legs" onclick="selectSplit('Legs')">🦵 Legs</button>
+          <div class="split-btns" id="session-split-btns">
+            <!-- populated by renderSplitButtons() on boot -->
           </div>
           <button class="btn btn-primary btn-block" id="start-session-btn" style="margin-top:14px" onclick="startSession()" disabled>Start Session</button>
         </div>
@@ -1261,28 +1269,68 @@
   <!-- ══════════════════════════════════════════════════════════ -->
   <!-- PIN SETUP MODAL                                            -->
   <!-- ══════════════════════════════════════════════════════════ -->
-  <div id="pin-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px">
-    <div style="width:100%;max-width:360px">
-      <div style="font-size:48px;text-align:center;margin-bottom:16px">💪</div>
-      <h2 style="font-size:24px;font-weight:700;text-align:center;margin-bottom:8px">FORGE</h2>
-      <p id="pin-modal-desc" style="font-size:14px;color:var(--text2);text-align:center;margin-bottom:32px;line-height:1.6">
-        Set a PIN to sync your data across your phone and laptop. Use the same PIN on any device.
+  <div id="pin-modal" style="display:none;position:fixed;inset:0;z-index:9999;background:var(--bg);overflow-y:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px">
+    <div style="width:100%;max-width:360px;padding-bottom:20px">
+      <div style="font-size:48px;text-align:center;margin-bottom:12px">💪</div>
+      <h2 style="font-size:26px;font-weight:800;text-align:center;margin-bottom:6px;letter-spacing:-0.5px">FORGE</h2>
+      <p id="pin-modal-desc" style="font-size:14px;color:var(--text2);text-align:center;margin-bottom:28px;line-height:1.6">
+        Your personal training tracker. Set up your profile to get started.
       </p>
+
+      <!-- Name -->
       <div style="margin-bottom:16px">
-        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px">Your PIN <span style="color:var(--text3);font-size:10px">(4–8 digits, you choose)</span></label>
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px">First Name</label>
+        <input id="name-input" type="text" maxlength="20" placeholder="Your first name"
+          style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:18px;font-weight:600;padding:12px 16px"
+          onkeydown="if(event.key==='Enter')document.getElementById('pin-input').focus()">
+      </div>
+
+      <!-- Split type -->
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px">Training Split</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px" id="split-type-picker">
+          <button class="split-type-opt active" data-split="ppl" onclick="selectSplitType('ppl')">
+            <div style="font-size:18px;margin-bottom:4px">💪🔄🦵</div>
+            <div style="font-size:13px;font-weight:700">Push/Pull/Legs</div>
+          </button>
+          <button class="split-type-opt" data-split="ul" onclick="selectSplitType('ul')">
+            <div style="font-size:18px;margin-bottom:4px">⬆️⬇️</div>
+            <div style="font-size:13px;font-weight:700">Upper/Lower</div>
+          </button>
+          <button class="split-type-opt" data-split="fb" onclick="selectSplitType('fb')">
+            <div style="font-size:18px;margin-bottom:4px">🏋️</div>
+            <div style="font-size:13px;font-weight:700">Full Body</div>
+          </button>
+          <button class="split-type-opt" data-split="custom" onclick="selectSplitType('custom')">
+            <div style="font-size:18px;margin-bottom:4px">✏️</div>
+            <div style="font-size:13px;font-weight:700">Custom</div>
+          </button>
+        </div>
+        <!-- Custom split names (shown only when custom selected) -->
+        <div id="custom-split-wrap" style="display:none;margin-top:10px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Enter your split names, comma separated:</div>
+          <input id="custom-split-input" type="text" placeholder="e.g. Chest, Back, Shoulders, Arms, Legs"
+            style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:13px;padding:10px 12px">
+        </div>
+      </div>
+
+      <!-- PIN -->
+      <div style="margin-bottom:16px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:8px">Sync PIN <span style="color:var(--text3);font-size:10px">(4–8 digits · same PIN on any device = synced data)</span></label>
         <input id="pin-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8"
           placeholder="e.g. 8472"
           style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:22px;font-weight:700;padding:14px 16px;letter-spacing:4px;text-align:center"
           onkeydown="if(event.key==='Enter')confirmPin()">
       </div>
+
       <p id="pin-error" style="font-size:13px;color:var(--red);text-align:center;min-height:20px;margin-bottom:12px"></p>
       <button onclick="confirmPin()" id="pin-btn"
         style="width:100%;background:linear-gradient(135deg,var(--accent2),var(--accent));border:none;border-radius:var(--radius-sm);color:#fff;font-size:16px;font-weight:700;padding:14px;cursor:pointer;margin-bottom:12px">
-        Continue
+        Let's Go
       </button>
       <button onclick="skipPin()"
         style="width:100%;background:none;border:none;color:var(--text3);font-size:13px;padding:8px;cursor:pointer">
-        Skip for now (local only, no sync)
+        Skip PIN (local only, no sync)
       </button>
     </div>
   </div>
@@ -1297,7 +1345,18 @@
         <span style="font-size:17px;font-weight:700">⚙️ Settings</span>
         <button onclick="closeSettings()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:0 4px">×</button>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px">
+      <!-- Name -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:10px">
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Profile</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="settings-name-input" type="text" maxlength="20" placeholder="First name"
+            style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:15px;font-weight:600;padding:10px 12px">
+          <button onclick="saveSettingsName()" style="background:var(--accent-dim);border:1px solid rgba(0,200,255,0.3);border-radius:var(--radius-sm);color:var(--accent);font-size:13px;font-weight:600;padding:10px 14px;cursor:pointer;white-space:nowrap">Save</button>
+        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:8px">Split: <span id="settings-split-label" style="color:var(--text2)">—</span></div>
+      </div>
+      <!-- Sync -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:10px">
         <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Sync & Storage</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <span style="font-size:14px">Active PIN</span>
@@ -1309,7 +1368,7 @@
         </div>
       </div>
       <div style="font-size:11px;color:var(--text3);text-align:center;line-height:1.6">
-        Data syncs automatically to Cloudflare on every save.<br>Open the app on any device with the same PIN to access your data.
+        Data syncs automatically to Cloudflare on every save.<br>Same PIN on any device = your data everywhere.
       </div>
     </div>
   </div>
@@ -1970,6 +2029,35 @@
   // STORAGE — PIN-prefixed localStorage + Cloudflare KV sync
   // ═══════════════════════════════════════════════════════════════
   const WORKER_URL = "https://workout-app.justin-andre00.workers.dev";
+
+  // ── SPLIT CONFIGS ────────────────────────────────────────────
+  const SPLIT_CONFIGS = {
+    ppl:    { label: 'Push / Pull / Legs', splits: ['Push','Pull','Legs'],   emoji: ['💪','🔄','🦵'] },
+    ul:     { label: 'Upper / Lower',      splits: ['Upper','Lower'],        emoji: ['⬆️','⬇️'] },
+    fb:     { label: 'Full Body',          splits: ['Full Body'],            emoji: ['🏋️'] },
+    custom: { label: 'Custom',             splits: [],                       emoji: [] }
+  };
+
+  function getActiveSplitConfig() {
+    const type = ls('wk_split_type', 'ppl');
+    if (type === 'custom') {
+      const names = ls('wk_custom_splits', ['A','B']);
+      return { label: 'Custom', splits: names, emoji: names.map(() => '🏅') };
+    }
+    return SPLIT_CONFIGS[type] || SPLIT_CONFIGS.ppl;
+  }
+
+  function getUserName() { return ls('wk_name', ''); }
+
+  // ── SPLIT TYPE PICKER (PIN modal) ────────────────────────────
+  let _pendingSplitType = 'ppl';
+  function selectSplitType(type) {
+    _pendingSplitType = type;
+    document.querySelectorAll('.split-type-opt').forEach(b =>
+      b.classList.toggle('active', b.dataset.split === type)
+    );
+    document.getElementById('custom-split-wrap').style.display = type === 'custom' ? 'block' : 'none';
+  }
   let _pin = "";
 
   function pinKey(k) { return _pin ? `${_pin}-${k}` : k; }
@@ -2047,13 +2135,16 @@
     errEl.textContent = '';
     document.getElementById('pin-btn').textContent = 'Loading…';
 
+    // Save name + split type first (local, no PIN prefix)
+    _savePinModalProfile();
+
     // Try to pull existing data from KV for this PIN
     const data = await kvGetAll(input);
     savePin(input);
     _pin = input;
 
     // Restore data from KV into localStorage (PIN-prefixed)
-    const keys = ['wk_sessions','wk_nutr','wk_nutr_goals','wk_saved_foods','wk_wellness','wk_cardio','wk_sports','wk_templates'];
+    const keys = ['wk_sessions','wk_nutr','wk_nutr_goals','wk_saved_foods','wk_wellness','wk_cardio','wk_sports','wk_templates','wk_name','wk_split_type','wk_custom_splits'];
     let restored = 0;
     keys.forEach(k => {
       if (data[k] !== undefined) {
@@ -2063,14 +2154,26 @@
     });
 
     hidePinModal();
-    document.getElementById('pin-btn').textContent = 'Continue';
+    document.getElementById('pin-btn').textContent = "Let's Go";
     if (restored > 0) showSyncToast(`✓ Synced ${restored} data sets from cloud`);
     else showSyncToast('✓ PIN set — data will sync automatically');
     setSyncDot('ok');
     bootApp();
   }
 
+  function _savePinModalProfile() {
+    const name = (document.getElementById('name-input')?.value || '').trim();
+    if (name) save('wk_name', name);
+    save('wk_split_type', _pendingSplitType);
+    if (_pendingSplitType === 'custom') {
+      const raw = document.getElementById('custom-split-input')?.value || '';
+      const splits = raw.split(',').map(s => s.trim()).filter(Boolean);
+      if (splits.length) save('wk_custom_splits', splits);
+    }
+  }
+
   function skipPin() {
+    _savePinModalProfile();
     hidePinModal();
     setSyncDot('none');
     bootApp();
@@ -2083,6 +2186,20 @@
     const pinDisplay = document.getElementById('settings-pin-display');
     if (_pin) pinDisplay.textContent = _pin.slice(0,2) + '•'.repeat(_pin.length-2);
     else pinDisplay.textContent = 'Not set';
+    const nameInput = document.getElementById('settings-name-input');
+    if (nameInput) nameInput.value = getUserName();
+    const splitLabel = document.getElementById('settings-split-label');
+    if (splitLabel) splitLabel.textContent = getActiveSplitConfig().label;
+  }
+
+  function saveSettingsName() {
+    const name = (document.getElementById('settings-name-input')?.value || '').trim();
+    if (name) {
+      save('wk_name', name);
+      updateDashboardDate();
+      showSyncToast('✓ Name saved');
+    }
+    closeSettings();
   }
 
   function closeSettings() {
@@ -2108,9 +2225,19 @@
 
   // ── BOOT SEQUENCE ────────────────────────────────────────────
   function bootApp() {
+    renderSplitButtons();
     renderWeeklyBars();
     updateDashboardDate();
     renderRecentSessions();
+  }
+
+  function renderSplitButtons() {
+    const container = document.getElementById('session-split-btns');
+    if (!container) return;
+    const config = getActiveSplitConfig();
+    container.innerHTML = config.splits.map((split, i) =>
+      `<button class="split-btn" data-split="${split}" onclick="selectSplit('${split}')">${config.emoji[i] || '🏅'} ${split}</button>`
+    ).join('');
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -4039,7 +4166,11 @@
     const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const h = now.getHours();
     const greet = h<12?'Good morning':h<17?'Good afternoon':'Good evening';
-    document.querySelector('#screen-dashboard .screen-header h1').innerHTML = `${greet}, <span>Justin</span> 👋`;
+    const name = getUserName();
+    const greeting = document.getElementById('dashboard-greeting');
+    const avatar = document.getElementById('header-avatar');
+    if (greeting) greeting.innerHTML = name ? `${greet}, <span>${name}</span> 👋` : `${greet} 👋`;
+    if (avatar) avatar.textContent = name ? name[0].toUpperCase() : '?';
     document.querySelector('#screen-dashboard .header-meta').textContent =
       `${days[now.getDay()]} · ${months[now.getMonth()]} ${now.getDate()}`;
   }
@@ -4082,9 +4213,11 @@
   // Determine what split to suggest given the last logged split
   // Always skips Sunday (forced rest)
   function getNextSplitSuggestion(lastSplit) {
-    if (!lastSplit) return 'Push'; // default start
-    const idx = PPL_CYCLE.indexOf(lastSplit);
-    return PPL_CYCLE[(idx + 1) % 3];
+    const splits = getActiveSplitConfig().splits;
+    if (!splits.length) return 'Full Body';
+    if (!lastSplit) return splits[0];
+    const idx = splits.indexOf(lastSplit);
+    return splits[(idx + 1) % splits.length];
   }
 
   function initPlanWeek() {
@@ -4189,7 +4322,11 @@
       if (proj.logged) {
         badgeClass = 'split-badge done';
       } else if (!isRest && !isSkipped) {
-        const splitMap = {Push:'push',Pull:'pull',Legs:'legs'};
+        // Cycle through accent colors for any split type
+        const allSplits = getActiveSplitConfig().splits;
+        const colorClasses = ['push','pull','legs','push','pull']; // cycles for longer splits
+        const splitMap = {};
+        allSplits.forEach((s,i) => { splitMap[s] = colorClasses[i % colorClasses.length]; });
         badgeClass = 'split-badge ' + (splitMap[proj.split] || 'rest');
       }
 
