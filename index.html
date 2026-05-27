@@ -4529,11 +4529,17 @@
     const form = document.getElementById('plan-build-content');
     if (!form) return;
 
+    // Split type options — user's configured splits + Full Body (if not already) + Custom
+    const activeSplits = getActiveSplitConfig().splits;
+    const splitSelectOptions = activeSplits.map(s => '<option value="' + s + '">' + s + '</option>').join('')
+      + (activeSplits.includes('Full Body') ? '' : '<option value="Full Body">Full Body</option>')
+      + '<option value="_custom">Custom name…</option>';
+
     // Group exercises flat by split for the picker
     const splitOptions = ['Push','Pull','Legs'].map(sp => {
       const groups = EXERCISE_LIB[sp];
       return Object.entries(groups).map(([grp, exs]) =>
-        `<optgroup label="${sp} — ${grp}">${exs.map(e=>`<option value="${e}">${e}</option>`).join('')}</optgroup>`
+        '<optgroup label="' + sp + ' — ' + grp + '">' + exs.map(e => '<option value="' + e + '">' + e + '</option>').join('') + '</optgroup>'
       ).join('');
     }).join('');
 
@@ -4548,12 +4554,11 @@
         </div>
         <div class="builder-field">
           <label>Split Type</label>
-          <select id="tmpl-split-select">
-            <option value="Push">Push</option>
-            <option value="Pull">Pull</option>
-            <option value="Legs">Legs</option>
-            <option value="Full">Full Body</option>
+          <select id="tmpl-split-select" onchange="onTmplSplitChange()">
+            ${splitSelectOptions}
           </select>
+          <input id="tmpl-split-custom" type="text" placeholder="e.g. Chest Day"
+            style="display:none;margin-top:8px;width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 12px">
         </div>
         <div class="builder-field">
           <label>Exercises</label>
@@ -4586,6 +4591,14 @@
     renderTemplates();
   }
 
+  function onTmplSplitChange() {
+    const sel = document.getElementById('tmpl-split-select');
+    const customInput = document.getElementById('tmpl-split-custom');
+    if (!sel || !customInput) return;
+    customInput.style.display = sel.value === '_custom' ? 'block' : 'none';
+    if (sel.value === '_custom') setTimeout(() => customInput.focus(), 50);
+  }
+
   function addBuilderEx() {
     const sel = document.getElementById('builder-ex-select');
     const val = sel.value;
@@ -4613,7 +4626,11 @@
 
   function saveTemplate() {
     const name = (document.getElementById('tmpl-name-input')?.value||'').trim();
-    const split = document.getElementById('tmpl-split-select')?.value || 'Push';
+    let split = document.getElementById('tmpl-split-select')?.value || getActiveSplitConfig().splits[0] || 'Push';
+    if (split === '_custom') {
+      split = (document.getElementById('tmpl-split-custom')?.value || '').trim();
+      if (!split) { alert('Enter a custom split name'); return; }
+    }
     if (!name) { alert('Give your template a name'); return; }
     if (!builderExercises.length) { alert('Add at least one exercise'); return; }
 
