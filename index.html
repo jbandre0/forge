@@ -3652,6 +3652,7 @@
     document.getElementById('start-session-btn').disabled = true;
     stopRestTimer();
     renderRecentSessions();
+    renderWeeklyBars(); // refresh "Workouts today" stat on dashboard
     showToast('Session saved! 💪');
   }
 
@@ -4033,7 +4034,7 @@
       const exNames = s.exercises.slice(0,3).map(e=>e.name).join(', ') + (s.exercises.length>3?` +${s.exercises.length-3}`:'');
       const total = s.exercises.reduce((n,e)=>n+(e.sets?.length||0),0);
       // Find actual index in full sessions array for safe deletion
-      const actualIdx = allSessions.findIndex(x => x.startTime === s.startTime);
+      const actualIdx = allSessions.findIndex(x => x.id === s.id && x.date === s.date);
       return `<div class="recent-session-card">
         <div class="recent-session-top" style="display:flex;justify-content:space-between;align-items:center">
           <div style="display:flex;align-items:center;gap:8px">
@@ -4195,6 +4196,7 @@
     const container = document.getElementById('weekly-bars');
     const sessions = ls('wk_sessions',[]);
     const now = new Date();
+    const todayStr = getLocalDateKey(now);
     // build a map of day-of-week → had session this week
     const weekMap = Array(7).fill(0);
     sessions.forEach(s => {
@@ -4214,6 +4216,10 @@
       if (!h) bar.style.background = 'rgba(255,255,255,0.04)';
       container.appendChild(bar);
     });
+    // Update "Workouts today" stat
+    const todayCount = sessions.filter(s => s.date === todayStr).length;
+    const statEls = document.querySelectorAll('.stat-big.glow-accent');
+    if (statEls[0]) statEls[0].textContent = todayCount;
   }
 
   function updateDashboardDate() {
@@ -4257,10 +4263,7 @@
       const d = new Date(monday);
       d.setDate(monday.getDate() + i);
       const key = getDateKey(d);
-      const hit = sessions.find(s => {
-        const sd = new Date(s.startTime);
-        return getDateKey(sd) === key;
-      });
+      const hit = sessions.find(s => s.date === key);
       if (hit) map[key] = hit.split;
     }
     return map;
@@ -4299,7 +4302,7 @@
     // Anchor: last logged split across all history
     let anchor = null;
     if (sessions.length) {
-      const sorted = [...sessions].sort((a,b) => b.startTime - a.startTime);
+      const sorted = [...sessions].sort((a,b) => (b.date||'').localeCompare(a.date||''));
       anchor = sorted[0].split;
     }
 
@@ -4434,7 +4437,7 @@
   // Helper — reuse streak calc
   function getStreakInfo(sessions) {
     if (!sessions.length) return { current: 0 };
-    const days = new Set(sessions.map(s => getDateKey(new Date(s.startTime))));
+    const days = new Set(sessions.map(s => s.date));
     let streak = 0;
     const d = new Date(); d.setHours(0,0,0,0);
     while (days.has(getDateKey(d))) { streak++; d.setDate(d.getDate()-1); }
@@ -4467,7 +4470,7 @@
 
     // Overall stats
     const totalSessions = sessions.length;
-    const firstDate = new Date(Math.min(...sessions.map(s=>s.startTime)));
+    const firstDate = new Date(Math.min(...sessions.map(s => s.id || new Date(s.date+'T12:00:00').getTime())));
     const weeksActive = Math.max(1, Math.ceil((now - firstDate) / (7*24*3600*1000)));
     const avgPerWeek = (totalSessions / weeksActive).toFixed(1);
     const splitTally = { Push:0, Pull:0, Legs:0 };
@@ -4482,16 +4485,17 @@
       </div>
     `;
 
-    // Max sessions in any week (for bar scaling)
+    // Max sessions in any week (for bar scaling) — use s.date for reliable local date comparison
+    const sessionDateToMs = s => new Date(s.date+'T12:00:00').getTime();
     const weekCounts = weeks.map(wk =>
-      sessions.filter(s => new Date(s.startTime) >= wk.start && new Date(s.startTime) <= wk.end).length
+      sessions.filter(s => { const t = sessionDateToMs(s); return t >= wk.start && t <= wk.end; }).length
     );
     const maxCount = Math.max(...weekCounts, 1);
 
     html += `<div class="card" style="margin-bottom:12px"><div class="card-title">4-Week Breakdown</div>`;
 
     weeks.forEach((wk, wi) => {
-      const wkSessions = sessions.filter(s => new Date(s.startTime) >= wk.start && new Date(s.startTime) <= wk.end);
+      const wkSessions = sessions.filter(s => { const t = sessionDateToMs(s); return t >= wk.start && t <= wk.end; });
       const counts = { Push:0, Pull:0, Legs:0 };
       wkSessions.forEach(s => { if (counts[s.split]!==undefined) counts[s.split]++; });
       const total = wkSessions.length;
