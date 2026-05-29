@@ -2247,6 +2247,62 @@
     renderWeeklyBars();
     updateDashboardDate();
     renderRecentSessions();
+    renderDashboardStreaks();
+  }
+
+  function renderDashboardStreaks() {
+    const TOTAL_DASH = 188.5;
+
+    // ── Workout streak ────────────────────────────────────────────
+    const sessions = ls('wk_sessions', []);
+    const workoutDays = new Set(sessions.map(s => s.date));
+    let wStreak = 0;
+    for (let i = 0;;i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      if (workoutDays.has(getLocalDateKey(d))) wStreak++;
+      else break;
+    }
+    const wMax = 6; // Mon–Sat scale; Justin never trains Sunday
+    const wOffset = TOTAL_DASH - (TOTAL_DASH * Math.min(wStreak / wMax, 1));
+    const wRing = document.getElementById('streak-workout-ring');
+    const wNum  = document.getElementById('streak-workout-num');
+    if (wRing) wRing.style.strokeDashoffset = wOffset;
+    if (wNum)  wNum.textContent = wStreak;
+
+    // ── Diet streak (days nutrition was logged) ───────────────────
+    const nutr = ls('wk_nutr', {});
+    const nutrSet = new Set(Object.keys(nutr).filter(k => {
+      const meals = nutr[k]?.meals || {};
+      return Object.values(meals).some(arr => arr.length > 0);
+    }));
+    let dStreak = 0;
+    for (let i = 0;;i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      if (nutrSet.has(getLocalDateKey(d))) dStreak++;
+      else break;
+    }
+    const dMax = Math.max(dStreak, 7);
+    const dOffset = TOTAL_DASH - (TOTAL_DASH * Math.min(dStreak / dMax, 1));
+    const dRing = document.getElementById('streak-diet-ring');
+    const dNum  = document.getElementById('streak-diet-num');
+    if (dRing) dRing.style.strokeDashoffset = dOffset;
+    if (dNum)  dNum.textContent = dStreak;
+
+    // ── Body weight streak (days weight was logged) ───────────────
+    const well = ls('wk_wellness', {});
+    const weightSet = new Set(Object.keys(well).filter(k => well[k]?.weight));
+    let bStreak = 0;
+    for (let i = 0;;i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      if (weightSet.has(getLocalDateKey(d))) bStreak++;
+      else break;
+    }
+    const bMax = Math.max(bStreak, 7);
+    const bOffset = TOTAL_DASH - (TOTAL_DASH * Math.min(bStreak / bMax, 1));
+    const bRing = document.getElementById('streak-body-ring');
+    const bNum  = document.getElementById('streak-body-num');
+    if (bRing) bRing.style.strokeDashoffset = bOffset;
+    if (bNum)  bNum.textContent = bStreak;
   }
 
   function renderSplitButtons() {
@@ -3652,7 +3708,8 @@
     document.getElementById('start-session-btn').disabled = true;
     stopRestTimer();
     renderRecentSessions();
-    renderWeeklyBars(); // refresh "Workouts today" stat on dashboard
+    renderWeeklyBars();
+    renderDashboardStreaks();
     showToast('Session saved! 💪');
   }
 
